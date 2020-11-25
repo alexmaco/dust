@@ -17,6 +17,7 @@ mod display;
 mod utils;
 
 static DEFAULT_NUMBER_OF_LINES: usize = 30;
+static DEFAULT_TERMINAL_WIDTH: usize = 80;
 
 #[cfg(windows)]
 fn init_color(no_color: bool) -> bool {
@@ -49,6 +50,15 @@ fn get_height_of_terminal() -> usize {
         max(h as usize, DEFAULT_NUMBER_OF_LINES) - 10
     } else {
         DEFAULT_NUMBER_OF_LINES - 10
+    }
+}
+
+fn get_width_of_terminal() -> usize {
+    // Windows CI runners detect a very low terminal width
+    if let Some((Width(w), Height(_h))) = terminal_size() {
+        max(w as usize, DEFAULT_TERMINAL_WIDTH)
+    } else {
+        DEFAULT_TERMINAL_WIDTH
     }
 }
 
@@ -132,6 +142,14 @@ fn main() {
                 .long("ignore_hidden")
                 .help("Obey .git_ignore rules & Do not display hidden files"),
         )
+        .arg(
+            Arg::with_name("width")
+                .short("w") // Do not use 'h' this is used by 'help'
+                .long("terminal_width")
+                .takes_value(true)
+                .number_of_values(1)
+                .help("Specify width of output overriding the auto detection of terminal width"),
+        )
 
         .arg(Arg::with_name("inputs").multiple(true))
         .get_matches();
@@ -149,6 +167,11 @@ fn main() {
             eprintln!("Ignoring bad value for number_of_lines");
             default_height
         }
+    };
+
+    let terminal_width = match value_t!(options.value_of("width"), usize) {
+        Ok(v) => v,
+        Err(_) => get_width_of_terminal(),
     };
 
     let depth = options.value_of("depth").and_then(|depth| {
@@ -197,6 +220,7 @@ fn main() {
         !options.is_present("reverse"),
         no_colors,
         options.is_present("no_bars"),
+        terminal_width,
         by_filecount,
         tree,
     );
